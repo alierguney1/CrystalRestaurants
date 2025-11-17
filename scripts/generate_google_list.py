@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sqlite3
 from html import escape
 from pathlib import Path
@@ -15,7 +16,7 @@ DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parent.parent / "output" / "googl
 def load_locations(connection: sqlite3.Connection) -> list[dict]:
     query = (
         "SELECT brand, branch, address, phone, website, extra_info, "
-        "resolved_address, resolved_phone, resolved_website, geocode_maps_url "
+        "resolved_address, resolved_phone, resolved_website, geocode_maps_url, menu_data, menu_source "
         "FROM locations ORDER BY brand COLLATE NOCASE, branch COLLATE NOCASE"
     )
     rows = connection.execute(query).fetchall()
@@ -32,6 +33,8 @@ def load_locations(connection: sqlite3.Connection) -> list[dict]:
             "resolved_phone": row[7],
             "resolved_website": row[8],
             "maps_url": row[9],
+            "menu_data": row[10],
+            "menu_source": row[11],
         })
     return records
 
@@ -56,6 +59,34 @@ def build_row_html(record: dict) -> str:
     maps_url = (record.get("maps_url") or fallback_maps_url(record) or "").strip()
     extra_info = escape((record.get("extra_info") or "").strip())
 
+    # Build menu summary
+    menu_summary = ""
+    menu_data = record.get("menu_data")
+    if menu_data:
+        try:
+            menu = json.loads(menu_data) if isinstance(menu_data, str) else menu_data
+            menu_items = []
+            
+            # Count sections and items
+            if menu.get("sections"):
+                total_items = sum(len(section.get("items", [])) for section in menu["sections"])
+                if total_items > 0:
+                    menu_items.append(f"🍽️ {total_items} menü ürünü")
+            
+            # Add PDF menus
+            if menu.get("pdf_menus"):
+                menu_items.append(f"📄 PDF menü mevcut")
+            
+            # Add image menus
+            if menu.get("image_menus"):
+                menu_items.append(f"🖼️ Menü görseli mevcut")
+            
+            if menu_items:
+                menu_summary = " · ".join(menu_items)
+        
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     website_html = (
         f"<a href='{escape(display_website, quote=True)}' target='_blank' rel='noopener'>Web</a>"
         if display_website
@@ -67,7 +98,10 @@ def build_row_html(record: dict) -> str:
         else ""
     )
 
-    info_lines = "<br>".join(filter(None, [display_address, display_phone, extra_info]))
+    info_parts = [display_address, display_phone, extra_info]
+    if menu_summary:
+        info_parts.append(f"<span style='color: #2a9d8f; font-weight: 500;'>{menu_summary}</span>")
+    info_lines = "<br>".join(filter(None, info_parts))
 
     actions = maps_html or ""
     if actions and website_html:
