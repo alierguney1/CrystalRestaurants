@@ -170,6 +170,43 @@ MAP_STYLES = """
     color: var(--crystal-muted);
 }
 
+.crystal-popup .extra.menu-info {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.65rem;
+    background: rgba(42, 157, 143, 0.08);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--crystal-primary-dark);
+}
+
+.crystal-popup .menu-preview {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+}
+
+.crystal-popup .menu-preview strong {
+    display: block;
+    margin-bottom: 0.4rem;
+    color: var(--crystal-text);
+}
+
+.crystal-popup .menu-preview ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.25rem;
+}
+
+.crystal-popup .menu-preview li {
+    padding: 0.3rem 0.5rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    color: var(--crystal-text);
+    font-size: 0.85rem;
+}
+
 #crystal-search-panel {
     position: absolute;
     top: 92px;
@@ -402,7 +439,7 @@ def resolve_display_fields(record: dict) -> dict[str, str | None]:
 def load_locations(connection: sqlite3.Connection) -> list[dict]:
     query = (
         "SELECT brand, branch, address, phone, website, extra_info, latitude, longitude, geocode_provider, "
-        "resolved_address, resolved_phone, resolved_website, geocode_maps_url "
+        "resolved_address, resolved_phone, resolved_website, geocode_maps_url, menu_data, menu_source "
         "FROM locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
         " ORDER BY brand COLLATE NOCASE, branch COLLATE NOCASE"
     )
@@ -423,6 +460,8 @@ def load_locations(connection: sqlite3.Connection) -> list[dict]:
             "resolved_phone": row[10],
             "resolved_website": row[11],
             "maps_url": row[12],
+            "menu_data": row[13],
+            "menu_source": row[14],
         })
     return records
 
@@ -450,6 +489,28 @@ def build_popup(record: dict, display: dict[str, str | None]) -> str:
 
     if record.get("extra_info"):
         parts.append(f"<div class='extra'>{record['extra_info']}</div>")
+
+    # Add menu information if available
+    menu_data = record.get("menu_data")
+    if menu_data:
+        try:
+            import json
+            menu = json.loads(menu_data)
+            item_count = len(menu.get("items", []))
+            if item_count > 0:
+                parts.append(f"<div class='extra menu-info'>📋 Menü: {item_count} ürün</div>")
+                
+                # Show a few sample items
+                items = menu.get("items", [])[:3]
+                if items:
+                    parts.append("<div class='menu-preview'><strong>Örnek ürünler:</strong><ul>")
+                    for item in items:
+                        item_name = item.get("name", "")
+                        item_price = item.get("price", "")
+                        parts.append(f"<li>{item_name} {item_price}</li>")
+                    parts.append("</ul></div>")
+        except (json.JSONDecodeError, Exception):
+            pass
 
     actions: list[str] = []
     if maps_url:
