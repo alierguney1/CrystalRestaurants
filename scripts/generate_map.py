@@ -402,7 +402,7 @@ def resolve_display_fields(record: dict) -> dict[str, str | None]:
 def load_locations(connection: sqlite3.Connection) -> list[dict]:
     query = (
         "SELECT brand, branch, address, phone, website, extra_info, latitude, longitude, geocode_provider, "
-        "resolved_address, resolved_phone, resolved_website, geocode_maps_url "
+        "resolved_address, resolved_phone, resolved_website, geocode_maps_url, menu_data, menu_source "
         "FROM locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
         " ORDER BY brand COLLATE NOCASE, branch COLLATE NOCASE"
     )
@@ -423,6 +423,8 @@ def load_locations(connection: sqlite3.Connection) -> list[dict]:
             "resolved_phone": row[10],
             "resolved_website": row[11],
             "maps_url": row[12],
+            "menu_data": row[13],
+            "menu_source": row[14],
         })
     return records
 
@@ -450,6 +452,61 @@ def build_popup(record: dict, display: dict[str, str | None]) -> str:
 
     if record.get("extra_info"):
         parts.append(f"<div class='extra'>{record['extra_info']}</div>")
+
+    # Add menu information if available
+    menu_data = record.get("menu_data")
+    if menu_data:
+        try:
+            menu = json.loads(menu_data) if isinstance(menu_data, str) else menu_data
+            
+            # Show menu sections
+            if menu.get("sections"):
+                parts.append("<div class='menu-section'>")
+                parts.append("<h4 style='margin: 0.75rem 0 0.5rem; font-size: 0.95rem; color: var(--crystal-primary);'>🍽️ Menü</h4>")
+                
+                for section in menu["sections"][:2]:  # Show first 2 sections
+                    section_name = section.get("name", "")
+                    items = section.get("items", [])
+                    
+                    if items:
+                        parts.append(f"<div style='margin-bottom: 0.5rem;'>")
+                        if section_name:
+                            parts.append(f"<strong style='font-size: 0.88rem; color: var(--crystal-text);'>{section_name}</strong>")
+                        parts.append("<ul style='list-style: none; margin: 0.25rem 0 0; padding: 0; font-size: 0.85rem;'>")
+                        
+                        for item in items[:3]:  # Show first 3 items per section
+                            item_name = item.get("name", "")
+                            item_price = item.get("price", "")
+                            if item_name:
+                                parts.append(f"<li style='color: var(--crystal-muted); padding: 0.15rem 0;'>")
+                                parts.append(f"{item_name}")
+                                if item_price:
+                                    parts.append(f" <span style='float: right; font-weight: 600;'>{item_price}</span>")
+                                parts.append("</li>")
+                        
+                        if len(items) > 3:
+                            parts.append(f"<li style='font-style: italic; color: var(--crystal-muted);'>...ve {len(items) - 3} ürün daha</li>")
+                        
+                        parts.append("</ul></div>")
+                
+                if len(menu.get("sections", [])) > 2:
+                    parts.append(f"<p style='font-size: 0.8rem; color: var(--crystal-muted); margin: 0.25rem 0 0;'>...ve {len(menu['sections']) - 2} kategori daha</p>")
+                
+                parts.append("</div>")
+            
+            # Show PDF menu links
+            elif menu.get("pdf_menus"):
+                parts.append("<div class='menu-section'>")
+                parts.append("<h4 style='margin: 0.75rem 0 0.5rem; font-size: 0.95rem; color: var(--crystal-primary);'>🍽️ Menü</h4>")
+                for pdf in menu["pdf_menus"][:2]:
+                    pdf_url = pdf.get("url", "")
+                    pdf_text = pdf.get("text", "PDF Menü")
+                    if pdf_url:
+                        parts.append(f"<a href='{pdf_url}' target='_blank' style='color: var(--crystal-primary); font-size: 0.88rem;'>📄 {pdf_text}</a><br>")
+                parts.append("</div>")
+        
+        except (json.JSONDecodeError, TypeError):
+            pass  # Ignore invalid menu data
 
     actions: list[str] = []
     if maps_url:
