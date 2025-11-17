@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sqlite3
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -169,6 +170,134 @@ MAP_STYLES = """
     color: var(--crystal-muted);
 }
 
+#crystal-search-panel {
+    position: absolute;
+    top: 92px;
+    left: 24px;
+    width: 320px;
+    max-width: 80vw;
+    z-index: 999;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+
+#crystal-search-panel.collapsed .panel-body {
+    display: none;
+}
+
+#crystal-search-panel.collapsed {
+    transform: translateX(-4px);
+    opacity: 0.88;
+}
+
+#crystal-search-panel .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--crystal-primary);
+    border: none;
+    color: #fff;
+    padding: 0.55rem 0.95rem;
+    border-radius: 16px;
+    box-shadow: 0 15px 30px rgba(36, 48, 63, 0.22);
+    cursor: pointer;
+    font-size: 0.92rem;
+}
+
+#crystal-search-panel .toggle:hover {
+    background: var(--crystal-primary-dark);
+}
+
+#crystal-search-panel .panel-body {
+    margin-top: 0.75rem;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 18px;
+    box-shadow: 0 22px 44px rgba(36, 48, 63, 0.18);
+    padding: 0.95rem;
+    backdrop-filter: blur(6px);
+}
+
+#crystal-search-panel input[type="search"] {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid rgba(36, 48, 63, 0.18);
+    font-size: 0.92rem;
+    outline: none;
+}
+
+#crystal-search-panel input[type="search"]:focus {
+    border-color: var(--crystal-primary);
+    box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.18);
+}
+
+#crystal-search-results {
+    list-style: none;
+    margin: 0.85rem 0 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    display: grid;
+    gap: 0.6rem;
+}
+
+#crystal-search-results li {
+    background: #f6f8fc;
+    border-radius: 14px;
+    padding: 0.65rem 0.75rem;
+    box-shadow: inset 0 0 0 1px rgba(36, 48, 63, 0.05);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#crystal-search-results li:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(36, 48, 63, 0.18);
+    background: #fff;
+}
+
+#crystal-search-results li strong {
+    display: block;
+    font-weight: 600;
+    color: var(--crystal-text);
+}
+
+#crystal-search-results li span {
+    display: block;
+    color: var(--crystal-muted);
+    font-size: 0.85rem;
+    margin-top: 0.2rem;
+}
+
+#crystal-search-results li p {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: var(--crystal-muted);
+}
+
+#crystal-search-panel .empty-state {
+    display: none;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--crystal-muted);
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    #crystal-search-panel {
+        top: auto;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 32px);
+        max-width: 420px;
+    }
+
+    #crystal-search-panel.collapsed {
+        transform: translate(-50%, 0);
+    }
+}
+
 .leaflet-control-fullscreen a {
     border-radius: 999px;
     box-shadow: 0 12px 24px rgba(36, 48, 63, 0.18);
@@ -184,11 +313,22 @@ CLUSTER_ICON_FUNCTION = """
 function(cluster) {
     const count = cluster.getChildCount();
     return L.divIcon({
-        html: `<div class="custom-cluster"><span>${count}</span></div>`,
+        html: `<div class=\"custom-cluster\"><span>${count}</span></div>`,
         className: 'marker-cluster',
         iconSize: [46, 46]
     });
 }
+"""
+
+SEARCH_PANEL_HTML = """
+<div id='crystal-search-panel' class='collapsed'>
+    <button type='button' class='toggle'>🔍 Mekan Ara</button>
+    <div class='panel-body'>
+        <input id='crystal-search-input' type='search' placeholder='İsim, semt veya adres ara...'>
+        <ul id='crystal-search-results'></ul>
+        <div class='empty-state'>Eşleşen kayıt bulunamadı.</div>
+    </div>
+</div>
 """
 
 
@@ -243,6 +383,22 @@ def deduplicate_records(records: list[dict]) -> list[dict]:
     return list(unique.values())
 
 
+def resolve_display_fields(record: dict) -> dict[str, str | None]:
+    display_address = record.get("resolved_address") or record.get("address")
+    display_phone = record.get("resolved_phone") or record.get("phone")
+    display_website = record.get("resolved_website") or record.get("website")
+    maps_url = record.get("maps_url")
+    if not maps_url and display_address:
+        query = ", ".join(filter(None, [record.get("brand"), record.get("branch"), display_address]))
+        maps_url = f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}"
+    return {
+        "address": display_address,
+        "phone": display_phone,
+        "website": display_website,
+        "maps_url": maps_url,
+    }
+
+
 def load_locations(connection: sqlite3.Connection) -> list[dict]:
     query = (
         "SELECT brand, branch, address, phone, website, extra_info, latitude, longitude, geocode_provider, "
@@ -271,16 +427,14 @@ def load_locations(connection: sqlite3.Connection) -> list[dict]:
     return records
 
 
-def build_popup(record: dict) -> str:
+def build_popup(record: dict, display: dict[str, str | None]) -> str:
     brand = record["brand"]
     branch = record.get("branch")
-    display_address = record.get("resolved_address") or record.get("address")
-    display_phone = record.get("resolved_phone") or record.get("phone")
-    display_website = record.get("resolved_website") or record.get("website")
-    maps_url = record.get("maps_url")
-    if not maps_url and display_address:
-        query = ", ".join(filter(None, [brand, branch, display_address]))
-        maps_url = f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}"
+    display_address = display.get("address")
+    display_phone = display.get("phone")
+    display_website = display.get("website")
+    maps_url = display.get("maps_url")
+
     parts = ["<div class='crystal-popup'>", "<header>", f"<h3>{brand}</h3>"]
     if branch:
         parts.append(f"<p class='branch'>{branch}</p>")
@@ -351,8 +505,11 @@ def generate_map(records: list[dict], output_path: Path) -> int:
         maxClusterRadius=36,
     )
 
-    for record in records:
-        popup_html = build_popup(record)
+    search_payload: list[dict[str, object]] = []
+
+    for index, record in enumerate(records):
+        display = resolve_display_fields(record)
+        popup_html = build_popup(record, display)
         icon = BeautifyIcon(
             icon="cutlery",
             prefix="fa",
@@ -371,8 +528,118 @@ def generate_map(records: list[dict], output_path: Path) -> int:
         )
         cluster.add_child(marker)
 
+        search_payload.append({
+            "id": index,
+            "markerName": marker.get_name(),
+            "brand": record.get("brand") or "",
+            "branch": record.get("branch") or "",
+            "address": display.get("address") or "",
+            "latitude": record.get("latitude"),
+            "longitude": record.get("longitude"),
+            "mapsUrl": display.get("maps_url") or "",
+        })
+
     cluster.add_to(base_map)
     folium.LayerControl(position="topright").add_to(base_map)
+    base_map.get_root().html.add_child(Element(SEARCH_PANEL_HTML))
+
+    search_script = f"""<script>
+(function() {{
+    const panel = document.getElementById('crystal-search-panel');
+    if (!panel) return;
+
+    const searchData = {json.dumps(search_payload, ensure_ascii=False)};
+
+    const escapeHtml = (value) => value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    searchData.forEach(loc => {{
+        const parts = [loc.brand, loc.branch, loc.address].filter(Boolean);
+        loc.searchText = parts.join(' ').toLowerCase();
+    }});
+
+    const initialise = () => {{
+        const mapObject = window["{base_map.get_name()}"];
+        const clusterGroup = window["{cluster.get_name()}"];
+        if (!mapObject || !clusterGroup) {{
+            window.setTimeout(initialise, 120);
+            return;
+        }}
+
+        const toggleBtn = panel.querySelector('.toggle');
+        const input = panel.querySelector('#crystal-search-input');
+        const list = panel.querySelector('#crystal-search-results');
+        const emptyState = panel.querySelector('.empty-state');
+
+        const focusLocation = (loc) => {{
+            const marker = window[loc.markerName];
+            if (!marker) return;
+            const currentZoom = mapObject.getZoom();
+            const targetZoom = currentZoom < 15 ? 15 : currentZoom;
+            const targetLatLng = [loc.latitude, loc.longitude];
+
+            const openPopup = () => {{
+                if (clusterGroup && clusterGroup.zoomToShowLayer) {{
+                    clusterGroup.zoomToShowLayer(marker, () => {{
+                        if (marker.openPopup) marker.openPopup();
+                    }});
+                }} else if (marker.openPopup) {{
+                    marker.openPopup();
+                }}
+            }};
+
+            mapObject.once('moveend', openPopup);
+            mapObject.flyTo(targetLatLng, targetZoom, {{ duration: 0.6 }});
+            panel.classList.add('collapsed');
+        }};
+
+        const render = (items) => {{
+            list.innerHTML = '';
+            if (!items.length) {{
+                emptyState.style.display = 'block';
+                return;
+            }}
+            emptyState.style.display = 'none';
+            items.slice(0, 40).forEach(loc => {{
+                const li = document.createElement('li');
+                const branch = loc.branch ? `<span>${{escapeHtml(loc.branch)}}</span>` : '';
+                const address = loc.address ? `<p>${{escapeHtml(loc.address)}}</p>` : '';
+                li.innerHTML = `<strong>${{escapeHtml(loc.brand)}}</strong>${{branch}}${{address}}`;
+                li.addEventListener('click', () => focusLocation(loc));
+                list.appendChild(li);
+            }});
+        }};
+
+        toggleBtn.addEventListener('click', () => {{
+            panel.classList.toggle('collapsed');
+            if (!panel.classList.contains('collapsed')) {{
+                window.setTimeout(() => input && input.focus(), 180);
+            }}
+        }});
+
+        input.addEventListener('input', () => {{
+            const term = input.value.trim().toLowerCase();
+            if (!term) {{
+                render(searchData);
+                return;
+            }}
+            const filtered = searchData.filter(loc => loc.searchText.includes(term));
+            render(filtered);
+        }});
+
+        render(searchData);
+    }};
+
+    initialise();
+}})();
+</script>"""
+
+    base_map.get_root().html.add_child(Element(search_script))
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     base_map.save(str(output_path))
     return len(records)
