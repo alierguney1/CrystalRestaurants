@@ -20,6 +20,8 @@ Haritadaki Crystal Card anlaşmalı restoranları otomatik olarak derlemek ve g�
 - `python scripts/generate_map.py`
 	- `output/crystal_map.html` dosyası üretir. Tarayıcıda açarak mekanların işaretlendiği interaktif haritayı görüntüleyin.
 	- Harita pencereleri mevcutsa Google Maps bağlantısını, güncel adresi ve telefon bilgisini gösterir. Google Maps bağlantısı yoksa adres üzerinden otomatik arama linki oluşturulur.
+	- Modern görünümlü CartoDB tabanlı tema kullanır, katman menüsünden gece moduna geçebilir ve butonlar aracılığıyla Google Maps/Web bağlantılarına ulaşabilirsiniz.
+	- Aynı marka/şube kombinasyonuna ait, aynı konumda yinelenen kayıtlar otomatik olarak elenir; avm gibi tek konumda farklı markalar ise korunur.
 
 ## Google Maps Liste Görünümü
 - `python scripts/generate_google_list.py`
