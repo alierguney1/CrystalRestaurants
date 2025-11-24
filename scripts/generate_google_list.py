@@ -12,6 +12,9 @@ from urllib.parse import quote_plus
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "crystal_locations.db"
 DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parent.parent / "output" / "google_list.html"
 
+# Navigation terms to filter out from menu items
+NAVIGATION_TERMS = ["ana sayfa", "hakkımızda", "iletişim", "markalarımız"]
+
 
 def load_locations(connection: sqlite3.Connection) -> list[dict]:
     query = (
@@ -95,7 +98,7 @@ def build_row_html(record: dict) -> str:
                         if item.get("name") and (
                             item.get("price") or 
                             (len(item.get("name", "")) < 50 and 
-                             not any(nav in item.get("name", "").lower() for nav in ["ana sayfa", "hakkımızda", "iletişim", "markalarımız"]))
+                             not any(nav in item.get("name", "").lower() for nav in NAVIGATION_TERMS))
                         )
                     ]
                     total_items += len(meaningful_items)
@@ -171,17 +174,23 @@ def render_html(records: list[dict]) -> str:
 <link href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap' rel='stylesheet'>
 <style>
 :root {{
-    --crystal-primary: #2a9d8f;
-    --crystal-primary-dark: #1f7a6d;
-    --crystal-primary-light: #e0f5f2;
+    --crystal-primary: #14b8a6;
+    --crystal-primary-dark: #0d9488;
+    --crystal-primary-light: #ccfbf1;
+    --crystal-secondary: #ec4899;
+    --crystal-secondary-dark: #db2777;
     --crystal-bg: #f8fafb;
     --crystal-card-bg: #ffffff;
-    --crystal-text: #24303f;
-    --crystal-muted: #6b7280;
+    --crystal-text: #1e293b;
+    --crystal-text-light: #475569;
+    --crystal-muted: #64748b;
     --crystal-accent: #f59e0b;
-    --crystal-price: #10b981;
-    --crystal-shadow: rgba(36, 48, 63, 0.08);
-    --crystal-shadow-hover: rgba(36, 48, 63, 0.15);
+    --crystal-accent-light: #fef3c7;
+    --crystal-price: #059669;
+    --crystal-price-bg: #d1fae5;
+    --crystal-shadow: rgba(15, 23, 42, 0.06);
+    --crystal-shadow-hover: rgba(15, 23, 42, 0.12);
+    --crystal-glow: rgba(20, 184, 166, 0.15);
 }}
 
 * {{
@@ -192,7 +201,7 @@ def render_html(records: list[dict]) -> str:
 
 body {{ 
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #f8fafb 0%, #e0f5f2 100%);
+    background: linear-gradient(135deg, #f0fdfa 0%, #e0f2fe 100%);
     color: var(--crystal-text);
     line-height: 1.6;
     min-height: 100vh;
@@ -200,27 +209,30 @@ body {{
 }}
 
 .header {{
-    background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
+    background: linear-gradient(135deg, var(--crystal-primary) 0%, var(--crystal-primary-dark) 100%);
     color: white;
-    padding: 2.5rem 2rem;
-    box-shadow: 0 4px 20px var(--crystal-shadow);
+    padding: 3rem 2rem;
+    box-shadow: 0 8px 32px rgba(20, 184, 166, 0.2);
     position: sticky;
     top: 0;
     z-index: 100;
+    border-bottom: 3px solid rgba(255, 255, 255, 0.2);
 }}
 
 .header h1 {{ 
-    margin: 0 0 0.5rem;
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    margin: 0 0 0.75rem;
+    font-size: 2.5rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }}
 
 .header p.meta {{ 
     margin: 0;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 1rem;
-    font-weight: 400;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
 }}
 
 .container {{
@@ -231,38 +243,44 @@ body {{
 
 .search-container {{
     background: var(--crystal-card-bg);
-    padding: 1.5rem;
-    border-radius: 16px;
-    box-shadow: 0 4px 16px var(--crystal-shadow);
+    padding: 1.75rem;
+    border-radius: 20px;
+    box-shadow: 0 8px 32px var(--crystal-shadow), 0 0 0 1px rgba(255, 255, 255, 0.9);
     margin-bottom: 2rem;
+    border: 1px solid rgba(20, 184, 166, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }}
 
 input[type="search"] {{ 
-    padding: 0.875rem 1.25rem;
+    padding: 1rem 1.5rem;
     width: 100%;
-    border-radius: 12px;
-    border: 2px solid rgba(42, 157, 143, 0.2);
-    font-size: 1rem;
+    border-radius: 14px;
+    border: 2px solid rgba(20, 184, 166, 0.2);
+    font-size: 1.05rem;
     font-family: inherit;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: white;
+    font-weight: 500;
 }}
 
 input[type="search"]:focus {{
     outline: none;
     border-color: var(--crystal-primary);
-    box-shadow: 0 0 0 4px var(--crystal-primary-light);
+    box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12), 0 4px 16px rgba(20, 184, 166, 0.1);
 }}
 
 input[type="search"]::placeholder {{
     color: var(--crystal-muted);
+    font-weight: 400;
 }}
 
 .table-container {{
     background: var(--crystal-card-bg);
-    border-radius: 16px;
+    border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 4px 20px var(--crystal-shadow);
+    box-shadow: 0 8px 32px var(--crystal-shadow), 0 0 0 1px rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(20, 184, 166, 0.08);
 }}
 
 table {{ 
@@ -271,23 +289,23 @@ table {{
 }}
 
 thead {{
-    background: linear-gradient(135deg, var(--crystal-primary-light), #d1fae5);
+    background: linear-gradient(135deg, var(--crystal-primary-light) 0%, #d1fae5 100%);
 }}
 
 th {{ 
-    padding: 1.25rem 1.5rem;
+    padding: 1.5rem 1.75rem;
     text-align: left;
     color: var(--crystal-primary-dark);
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.95rem;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     border-bottom: 3px solid var(--crystal-primary);
 }}
 
 td {{ 
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid rgba(42, 157, 143, 0.1);
+    padding: 1.5rem 1.75rem;
+    border-bottom: 1px solid rgba(20, 184, 166, 0.08);
     vertical-align: top;
 }}
 
@@ -296,72 +314,76 @@ tr:last-child td {{
 }}
 
 tbody tr {{
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: white;
 }}
 
 tbody tr:hover {{ 
-    background: linear-gradient(90deg, var(--crystal-primary-light), rgba(240, 253, 249, 0.6));
-    transform: translateX(4px);
-    box-shadow: 0 2px 8px var(--crystal-shadow);
+    background: linear-gradient(90deg, rgba(20, 184, 166, 0.04) 0%, rgba(240, 253, 250, 0.8) 100%);
+    transform: translateX(6px);
+    box-shadow: 0 4px 16px var(--crystal-shadow-hover);
 }}
 
 .brand-name {{
-    font-size: 1.1rem;
-    font-weight: 700;
+    font-size: 1.15rem;
+    font-weight: 800;
     color: var(--crystal-text);
     display: block;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.3rem;
+    letter-spacing: -0.02em;
 }}
 
 .branch-name {{
     display: block;
-    font-size: 0.9rem;
-    color: var(--crystal-muted);
-    font-weight: 500;
-    margin-top: 0.25rem;
+    font-size: 0.95rem;
+    color: var(--crystal-text-light);
+    font-weight: 600;
+    margin-top: 0.3rem;
 }}
 
 td.info {{
     color: var(--crystal-muted);
     font-size: 0.95rem;
-    line-height: 1.7;
+    line-height: 1.8;
+    font-weight: 500;
 }}
 
 .menu-info {{
-    margin-top: 0.75rem;
+    margin-top: 0.875rem;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.625rem;
 }}
 
 .menu-badge {{
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.4rem;
     background: linear-gradient(135deg, var(--crystal-primary-light), #d1fae5);
     color: var(--crystal-primary-dark);
-    padding: 0.4rem 0.75rem;
+    padding: 0.5rem 0.875rem;
     border-radius: 999px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: 1px solid rgba(42, 157, 143, 0.2);
-    transition: all 0.2s ease;
+    font-size: 0.87rem;
+    font-weight: 700;
+    border: 1.5px solid rgba(20, 184, 166, 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 6px rgba(20, 184, 166, 0.08);
 }}
 
 .menu-badge:hover {{
     transform: translateY(-2px);
-    box-shadow: 0 2px 8px var(--crystal-shadow);
+    box-shadow: 0 4px 12px rgba(20, 184, 166, 0.15);
+    border-color: rgba(20, 184, 166, 0.3);
 }}
 
 .menu-badge.price-badge {{
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    background: linear-gradient(135deg, var(--crystal-price-bg), #a7f3d0);
     color: #065f46;
-    border-color: rgba(16, 185, 129, 0.3);
+    border-color: rgba(5, 150, 105, 0.3);
 }}
 
 .menu-badge.date-badge {{
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    background: linear-gradient(135deg, var(--crystal-accent-light), #fde68a);
     color: #92400e;
     border-color: rgba(245, 158, 11, 0.3);
 }}
@@ -369,43 +391,48 @@ td.info {{
 .action-link {{
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    color: var(--crystal-primary);
+    gap: 0.5rem;
+    color: var(--crystal-primary-dark);
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.95rem;
-    padding: 0.5rem 1rem;
+    padding: 0.625rem 1.125rem;
     border-radius: 999px;
-    transition: all 0.2s ease;
-    background: rgba(42, 157, 143, 0.08);
-    border: 2px solid transparent;
-    margin-right: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(20, 184, 166, 0.08);
+    border: 2px solid rgba(20, 184, 166, 0.15);
+    margin-right: 0.625rem;
+    letter-spacing: 0.01em;
 }}
 
 .action-link:hover {{
-    background: var(--crystal-primary);
+    background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
     color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(42, 157, 143, 0.3);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px var(--crystal-glow);
+    border-color: var(--crystal-primary-dark);
 }}
 
 .action-link.primary {{
     background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
     color: white;
     border-color: var(--crystal-primary-dark);
+    box-shadow: 0 4px 16px var(--crystal-glow);
 }}
 
 .action-link.primary:hover {{
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(42, 157, 143, 0.4);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 24px var(--crystal-glow);
 }}
 
 .no-results {{ 
     display: none;
     text-align: center;
-    padding: 3rem;
+    padding: 3.5rem;
     color: var(--crystal-muted);
-    font-size: 1.1rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    font-style: italic;
 }}
 
 .no-results.show {{
@@ -414,11 +441,15 @@ td.info {{
 
 @media (max-width: 768px) {{
     .header {{
-        padding: 1.5rem 1rem;
+        padding: 2rem 1.25rem;
     }}
     
     .header h1 {{
-        font-size: 1.5rem;
+        font-size: 1.75rem;
+    }}
+    
+    .header p.meta {{
+        font-size: 0.95rem;
     }}
     
     .container {{
@@ -426,16 +457,16 @@ td.info {{
     }}
     
     th, td {{
-        padding: 0.875rem 1rem;
+        padding: 1rem 1.25rem;
     }}
     
     .brand-name {{
-        font-size: 1rem;
+        font-size: 1.05rem;
     }}
     
     .action-link {{
-        padding: 0.4rem 0.75rem;
-        font-size: 0.85rem;
+        padding: 0.5rem 0.875rem;
+        font-size: 0.87rem;
     }}
 }}
 </style>
