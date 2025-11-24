@@ -322,13 +322,23 @@ def scrape_menus(
     ensure_menu_columns(connection)
     
     # Build query
-    if force:
-        query = "SELECT id, brand, branch, website, resolved_website, geocode_place_id, menu_data FROM locations"
+    base_query = (
+        "SELECT id, brand, branch, website, resolved_website, geocode_place_id, menu_data "
+        "FROM locations"
+    )
+
+    conditions = []
+
+    if not force:
+        conditions.append("menu_data IS NULL")
+
+    # Only attempt scraping for records with a website available
+    conditions.append("(website IS NOT NULL OR resolved_website IS NOT NULL)")
+
+    if conditions:
+        query = f"{base_query} WHERE {' AND '.join(conditions)}"
     else:
-        query = "SELECT id, brand, branch, website, resolved_website, geocode_place_id, menu_data FROM locations WHERE menu_data IS NULL"
-    
-    # Add website filter - only scrape locations that have a website
-    query += " AND (website IS NOT NULL OR resolved_website IS NOT NULL)"
+        query = base_query
     
     if limit:
         query += f" LIMIT {limit}"

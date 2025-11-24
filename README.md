@@ -7,7 +7,7 @@ Haritadaki Crystal Card anlaşmalı restoranları otomatik olarak derlemek ve g�
 - Gereksinimleri kurun: `pip install -r requirements.txt`
 
 ## Veri Toplama
-- `python scripts/scrape_crystal.py --geocode`
+- `python scripts/scrape_crystal.py --geocode --geocoder-list google,arcgis`
 	- Çalıştırdıktan sonra `data/crystal_locations.db` dosyası oluşur veya güncellenir.
 	- Varsayılan olarak Nominatim ve ArcGIS sırasıyla denenir. Kendi tercihlerinizi `--geocoder-list nominatim,arcgis,photon` gibi parametreyle belirleyebilirsiniz.
 	- Nominatim kullanırken erişim politikasına uygun şekilde gecikme süresini (`--geocode-delay`) en az 1 sn tutun ve mümkünse `--nominatim-email example@mail.com` ile iletişim bilgisi ekleyin.
