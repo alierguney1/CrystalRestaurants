@@ -15,158 +15,427 @@ from folium.plugins import BeautifyIcon, Fullscreen, MarkerCluster
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "crystal_locations.db"
 DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parent.parent / "output" / "crystal_map.html"
 
+# Navigation terms to filter out from menu items
+NAVIGATION_TERMS = ["ana sayfa", "hakkımızda", "iletişim", "markalarımız"]
+
 MAP_STYLES = """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@600;700;800&display=swap');
+
 :root {
-    --crystal-primary: #2a9d8f;
-    --crystal-primary-dark: #1f7a6d;
+    --crystal-primary: #14b8a6;
+    --crystal-primary-dark: #0d9488;
+    --crystal-primary-light: #ccfbf1;
+    --crystal-secondary: #ec4899;
+    --crystal-secondary-dark: #db2777;
     --crystal-bg: #ffffff;
-    --crystal-text: #24303f;
-    --crystal-muted: #6b7280;
+    --crystal-text: #1e293b;
+    --crystal-text-light: #475569;
+    --crystal-muted: #64748b;
+    --crystal-accent: #f59e0b;
+    --crystal-accent-light: #fef3c7;
+    --crystal-price: #059669;
+    --crystal-price-bg: #d1fae5;
+    --crystal-shadow: rgba(15, 23, 42, 0.08);
+    --crystal-shadow-lg: rgba(15, 23, 42, 0.15);
+    --crystal-glow: rgba(20, 184, 166, 0.2);
 }
 
 .leaflet-container {
-    font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
-    background: #f4f6fb;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #f0fdfa 0%, #e0f2fe 100%);
 }
 
 .leaflet-control-layers {
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 14px;
-    border: none;
-    box-shadow: 0 12px 32px rgba(36, 48, 63, 0.18);
-    padding: 0.75rem 0.85rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 16px;
+    border: 1px solid rgba(20, 184, 166, 0.15);
+    box-shadow: 0 8px 32px var(--crystal-shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.8);
+    padding: 0.875rem 1rem;
     color: var(--crystal-text);
 }
 
 .leaflet-control-layers-toggle {
     width: auto;
     height: auto;
-    padding: 0.35rem 0.65rem;
-    background: var(--crystal-primary);
+    padding: 0.5rem 0.875rem;
+    background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
     color: #fff;
     border-radius: 999px;
-    font-size: 0.85rem;
-    box-shadow: 0 12px 32px rgba(42, 157, 143, 0.25);
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 4px 16px var(--crystal-glow), 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.leaflet-control-layers-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px var(--crystal-glow), 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .leaflet-popup-content-wrapper {
-    border-radius: 18px;
-    box-shadow: 0 22px 38px rgba(36, 48, 63, 0.24);
-    background: linear-gradient(165deg, #ffffff 0%, #f5f7fb 100%);
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.9);
+    background: linear-gradient(165deg, #ffffff 0%, #f8fafc 100%);
     border: none;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .leaflet-popup-tip {
-    background: linear-gradient(165deg, #ffffff 0%, #f5f7fb 100%);
+    background: linear-gradient(165deg, #ffffff 0%, #f8fafc 100%);
 }
 
 .crystal-popup {
-    min-width: 240px;
+    min-width: 300px;
+    max-width: 420px;
     color: var(--crystal-text);
+    font-size: 0.95rem;
 }
 
 .crystal-popup h3 {
     margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--crystal-primary) 0%, var(--crystal-primary-dark) 50%, #0891b2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.3;
 }
 
 .crystal-popup p.branch {
-    margin: 0.2rem 0 0;
-    font-size: 0.9rem;
-    color: var(--crystal-muted);
+    margin: 0.4rem 0 0;
+    font-size: 1rem;
+    color: var(--crystal-text-light);
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .crystal-popup ul.details {
     list-style: none;
-    margin: 0.75rem 0 0;
+    margin: 1rem 0 0;
     padding: 0;
     display: grid;
-    gap: 0.35rem;
+    gap: 0.6rem;
 }
 
 .crystal-popup ul.details li {
     display: grid;
-    grid-template-columns: minmax(60px, auto) 1fr;
-    gap: 0.6rem;
-    font-size: 0.92rem;
+    grid-template-columns: minmax(80px, auto) 1fr;
+    gap: 0.875rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    align-items: start;
 }
 
 .crystal-popup ul.details span.label {
-    font-weight: 600;
-    color: var(--crystal-muted);
+    font-weight: 700;
+    color: var(--crystal-primary-dark);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.crystal-popup ul.details span:not(.label) {
+    color: var(--crystal-text);
+    font-weight: 500;
 }
 
 .crystal-popup .extra {
-    margin-top: 0.65rem;
+    margin-top: 0.875rem;
     font-size: 0.9rem;
     color: var(--crystal-muted);
+    font-style: italic;
+}
+
+/* Ultra-Modern Menu Styles */
+.menu-section {
+    margin-top: 1.25rem;
+    background: linear-gradient(145deg, rgba(20, 184, 166, 0.05) 0%, rgba(6, 182, 212, 0.05) 100%);
+    border-radius: 20px;
+    padding: 1.25rem;
+    border: 2px solid rgba(20, 184, 166, 0.15);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(20, 184, 166, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.menu-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--crystal-primary) 0%, var(--crystal-secondary) 50%, var(--crystal-accent) 100%);
+    border-radius: 20px 20px 0 0;
+}
+
+.menu-section::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at top right, rgba(236, 72, 153, 0.03), transparent 50%);
+    pointer-events: none;
+}
+
+.menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0 0 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.menu-header h4 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--crystal-text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    letter-spacing: -0.02em;
+}
+
+.menu-header h4 span {
+    font-size: 1.3rem;
+    filter: drop-shadow(0 2px 4px rgba(20, 184, 166, 0.2));
+}
+
+.menu-date-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: linear-gradient(135deg, var(--crystal-accent-light), #fde68a);
+    padding: 0.4rem 0.875rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #92400e;
+    border: 1.5px solid rgba(245, 158, 11, 0.3);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+    letter-spacing: 0.02em;
+}
+
+.menu-category {
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.menu-category:last-child {
+    margin-bottom: 0;
+}
+
+.menu-category-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--crystal-text);
+    margin-bottom: 0.625rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid rgba(20, 184, 166, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    letter-spacing: -0.01em;
+}
+
+.menu-category-name::before {
+    content: '';
+    width: 3px;
+    height: 1.2em;
+    background: linear-gradient(180deg, var(--crystal-primary), var(--crystal-secondary));
+    border-radius: 999px;
+}
+
+.menu-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.625rem 0.875rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid rgba(20, 184, 166, 0.1);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--crystal-primary), var(--crystal-secondary));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.menu-item:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateX(6px);
+    box-shadow: 0 4px 16px rgba(20, 184, 166, 0.15), 0 0 0 1px rgba(20, 184, 166, 0.1);
+    border-color: rgba(20, 184, 166, 0.2);
+}
+
+.menu-item:hover::before {
+    opacity: 1;
+}
+
+.menu-item-name {
+    font-size: 0.92rem;
+    color: var(--crystal-text);
+    font-weight: 600;
+    flex: 1;
+    margin-right: 0.75rem;
+    line-height: 1.4;
+}
+
+.menu-item-price {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--crystal-price);
+    background: linear-gradient(135deg, var(--crystal-price-bg), #a7f3d0);
+    padding: 0.35rem 0.875rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.2);
+    border: 1.5px solid rgba(5, 150, 105, 0.15);
+    letter-spacing: 0.01em;
+}
+
+.menu-more {
+    font-style: italic;
+    color: var(--crystal-muted);
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 0.625rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 10px;
+    font-weight: 600;
+    border: 1px dashed rgba(20, 184, 166, 0.2);
+}
+
+.menu-pdf-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--crystal-primary-dark);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 0.625rem 1rem;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid rgba(20, 184, 166, 0.2);
+    box-shadow: 0 2px 8px rgba(20, 184, 166, 0.1);
+}
+
+.menu-pdf-link:hover {
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(255, 255, 255, 0.95));
+    transform: translateX(6px);
+    box-shadow: 0 4px 16px rgba(20, 184, 166, 0.2);
+    border-color: rgba(20, 184, 166, 0.3);
 }
 
 .crystal-popup .actions {
-    margin-top: 0.9rem;
+    margin-top: 1.25rem;
     display: flex;
-    gap: 0.5rem;
+    gap: 0.625rem;
     flex-wrap: wrap;
 }
 
 .crystal-popup .actions a {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    background: var(--crystal-primary);
+    gap: 0.45rem;
+    background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
     color: #fff;
     text-decoration: none;
-    font-size: 0.88rem;
-    padding: 0.35rem 0.75rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    padding: 0.625rem 1.125rem;
     border-radius: 999px;
-    transition: background 0.2s ease, transform 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px var(--crystal-glow), 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    letter-spacing: 0.01em;
 }
 
 .crystal-popup .actions .icon {
-    font-size: 1.05rem;
+    font-size: 1.1rem;
     line-height: 1;
 }
 
 .crystal-popup .actions a:hover {
-    background: var(--crystal-primary-dark);
-    transform: translateY(-1px);
+    background: linear-gradient(135deg, var(--crystal-primary-dark), #0891b2);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 24px var(--crystal-glow), 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .crystal-popup .actions a.secondary {
-    background: rgba(255, 255, 255, 0.95);
-    color: var(--crystal-primary);
-    border: 1px solid rgba(42, 157, 143, 0.35);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+    color: var(--crystal-primary-dark);
+    border: 2px solid rgba(20, 184, 166, 0.3);
+    box-shadow: 0 2px 8px rgba(20, 184, 166, 0.15);
 }
 
 .crystal-popup .actions a.secondary:hover {
-    background: rgba(42, 157, 143, 0.12);
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(240, 253, 250, 1));
     color: var(--crystal-primary-dark);
+    border-color: var(--crystal-primary);
+    box-shadow: 0 4px 16px rgba(20, 184, 166, 0.25);
 }
 
 .custom-cluster {
-    background: var(--crystal-primary);
+    background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
     border-radius: 50%;
     color: #fff;
-    font-weight: 600;
-    font-size: 0.95rem;
-    box-shadow: 0 18px 36px rgba(36, 48, 63, 0.2);
+    font-weight: 700;
+    font-size: 1rem;
+    box-shadow: 0 8px 24px var(--crystal-glow), 0 2px 8px rgba(0, 0, 0, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 3px solid rgba(255, 255, 255, 0.8);
-    width: 44px;
-    height: 44px;
-    background-image: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(42,157,143,0.9));
+    border: 3px solid rgba(255, 255, 255, 0.9);
+    width: 48px;
+    height: 48px;
+    background-image: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), transparent);
 }
 
 .custom-cluster span {
     transform: translateY(-1px);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .crystal-popup .extra.source {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     color: var(--crystal-muted);
 }
 
@@ -174,11 +443,11 @@ MAP_STYLES = """
     position: absolute;
     top: 92px;
     left: 24px;
-    width: 320px;
+    width: 340px;
     max-width: 80vw;
     z-index: 999;
-    transition: transform 0.25s ease, opacity 0.25s ease;
-    font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 #crystal-search-panel.collapsed .panel-body {
@@ -187,100 +456,117 @@ MAP_STYLES = """
 
 #crystal-search-panel.collapsed {
     transform: translateX(-4px);
-    opacity: 0.88;
+    opacity: 0.9;
 }
 
 #crystal-search-panel .toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    background: var(--crystal-primary);
+    gap: 0.5rem;
+    background: linear-gradient(135deg, var(--crystal-primary), var(--crystal-primary-dark));
     border: none;
     color: #fff;
-    padding: 0.55rem 0.95rem;
-    border-radius: 16px;
-    box-shadow: 0 15px 30px rgba(36, 48, 63, 0.22);
+    padding: 0.75rem 1.25rem;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px var(--crystal-glow), 0 2px 8px rgba(0, 0, 0, 0.1);
     cursor: pointer;
-    font-size: 0.92rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 #crystal-search-panel .toggle:hover {
-    background: var(--crystal-primary-dark);
+    background: linear-gradient(135deg, var(--crystal-primary-dark), #0891b2);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px var(--crystal-glow), 0 3px 10px rgba(0, 0, 0, 0.15);
 }
 
 #crystal-search-panel .panel-body {
-    margin-top: 0.75rem;
-    background: rgba(255, 255, 255, 0.96);
-    border-radius: 18px;
-    box-shadow: 0 22px 44px rgba(36, 48, 63, 0.18);
-    padding: 0.95rem;
-    backdrop-filter: blur(6px);
+    margin-top: 1rem;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.9);
+    padding: 1.25rem;
+    border: 1px solid rgba(20, 184, 166, 0.1);
 }
 
 #crystal-search-panel input[type="search"] {
     width: 100%;
-    padding: 0.55rem 0.75rem;
-    border-radius: 12px;
-    border: 1px solid rgba(36, 48, 63, 0.18);
-    font-size: 0.92rem;
+    padding: 0.75rem 1rem;
+    border-radius: 14px;
+    border: 2px solid rgba(20, 184, 166, 0.2);
+    font-size: 0.95rem;
     outline: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
+    background: white;
 }
 
 #crystal-search-panel input[type="search"]:focus {
     border-color: var(--crystal-primary);
-    box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.18);
+    box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.15);
 }
 
 #crystal-search-results {
     list-style: none;
-    margin: 0.85rem 0 0;
+    margin: 1rem 0 0;
     padding: 0;
-    max-height: 320px;
+    max-height: 340px;
     overflow-y: auto;
     display: grid;
-    gap: 0.6rem;
+    gap: 0.75rem;
 }
 
 #crystal-search-results li {
-    background: #f6f8fc;
-    border-radius: 14px;
-    padding: 0.65rem 0.75rem;
-    box-shadow: inset 0 0 0 1px rgba(36, 48, 63, 0.05);
+    background: linear-gradient(135deg, #f8fafc, #ffffff);
+    border-radius: 16px;
+    padding: 0.875rem 1rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid rgba(20, 184, 166, 0.08);
 }
 
 #crystal-search-results li:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(36, 48, 63, 0.18);
-    background: #fff;
+    transform: translateY(-3px) translateX(4px);
+    box-shadow: 0 8px 24px rgba(20, 184, 166, 0.15);
+    background: linear-gradient(135deg, #ffffff, #f0fdfa);
+    border-color: rgba(20, 184, 166, 0.2);
 }
 
 #crystal-search-results li strong {
     display: block;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--crystal-text);
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
 }
 
 #crystal-search-results li span {
     display: block;
-    color: var(--crystal-muted);
-    font-size: 0.85rem;
-    margin-top: 0.2rem;
+    color: var(--crystal-text-light);
+    font-size: 0.87rem;
+    margin-top: 0.25rem;
+    font-weight: 500;
 }
 
 #crystal-search-results li p {
-    margin: 0.35rem 0 0;
+    margin: 0.4rem 0 0;
     font-size: 0.85rem;
     color: var(--crystal-muted);
+    line-height: 1.4;
 }
 
 #crystal-search-panel .empty-state {
     display: none;
-    margin-top: 0.75rem;
-    font-size: 0.85rem;
+    margin-top: 1rem;
+    font-size: 0.9rem;
     color: var(--crystal-muted);
     text-align: center;
+    font-style: italic;
 }
 
 @media (max-width: 640px) {
@@ -300,12 +586,24 @@ MAP_STYLES = """
 
 .leaflet-control-fullscreen a {
     border-radius: 999px;
-    box-shadow: 0 12px 24px rgba(36, 48, 63, 0.18);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
     background: #fff;
+    transition: all 0.3s ease;
 }
 
-.leaflet-bar a { border: none; }
-.leaflet-bar a:hover { background: rgba(36, 48, 63, 0.08); }
+.leaflet-control-fullscreen a:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
+}
+
+.leaflet-bar a { 
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.leaflet-bar a:hover { 
+    background: rgba(20, 184, 166, 0.08);
+}
 </style>
 """
 
@@ -402,7 +700,7 @@ def resolve_display_fields(record: dict) -> dict[str, str | None]:
 def load_locations(connection: sqlite3.Connection) -> list[dict]:
     query = (
         "SELECT brand, branch, address, phone, website, extra_info, latitude, longitude, geocode_provider, "
-        "resolved_address, resolved_phone, resolved_website, geocode_maps_url, menu_data, menu_source "
+        "resolved_address, resolved_phone, resolved_website, geocode_maps_url, menu_data, menu_source, menu_last_updated "
         "FROM locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
         " ORDER BY brand COLLATE NOCASE, branch COLLATE NOCASE"
     )
@@ -425,15 +723,19 @@ def load_locations(connection: sqlite3.Connection) -> list[dict]:
             "maps_url": row[12],
             "menu_data": row[13],
             "menu_source": row[14],
+            "menu_last_updated": row[15],
         })
     return records
 
 
 def build_popup(record: dict, display: dict[str, str | None]) -> str:
-    brand = record["brand"]
-    branch = record.get("branch")
-    display_address = display.get("address")
-    display_phone = display.get("phone")
+    from datetime import datetime
+    from html import escape
+    
+    brand = escape(record["brand"])
+    branch = escape(record.get("branch") or "") if record.get("branch") else None
+    display_address = escape(display.get("address") or "") if display.get("address") else None
+    display_phone = escape(display.get("phone") or "") if display.get("phone") else None
     display_website = display.get("website")
     maps_url = display.get("maps_url")
 
@@ -451,58 +753,97 @@ def build_popup(record: dict, display: dict[str, str | None]) -> str:
         parts.append("<ul class='details'>" + "".join(detail_rows) + "</ul>")
 
     if record.get("extra_info"):
-        parts.append(f"<div class='extra'>{record['extra_info']}</div>")
+        parts.append(f"<div class='extra'>{escape(record['extra_info'])}</div>")
 
-    # Add menu information if available
+    # Add menu information if available with modern design
     menu_data = record.get("menu_data")
+    menu_last_updated = record.get("menu_last_updated")
+    
     if menu_data:
         try:
             menu = json.loads(menu_data) if isinstance(menu_data, str) else menu_data
             
-            # Show menu sections
+            # Format the date nicely
+            date_str = ""
+            if menu_last_updated:
+                try:
+                    dt = datetime.fromisoformat(menu_last_updated.replace('Z', '+00:00'))
+                    date_str = dt.strftime("%d.%m.%Y")
+                except (ValueError, AttributeError):
+                    pass
+            
+            # Show menu sections with prices
             if menu.get("sections"):
-                parts.append("<div class='menu-section'>")
-                parts.append("<h4 style='margin: 0.75rem 0 0.5rem; font-size: 0.95rem; color: var(--crystal-primary);'>🍽️ Menü</h4>")
+
                 
-                for section in menu["sections"][:2]:  # Show first 2 sections
+                parts.append("<div class='menu-section'>")
+                parts.append("<div class='menu-header'>")
+                parts.append("<h4><span>🍽️</span> Menü</h4>")
+                if date_str:
+                    parts.append(f"<span class='menu-date-badge'>📅 {date_str}</span>")
+                parts.append("</div>")
+                
+                sections_shown = 0
+                for section in menu["sections"]:
+                    if sections_shown >= 2:  # Show max 2 sections
+                        break
+                        
                     section_name = section.get("name", "")
                     items = section.get("items", [])
                     
-                    if items:
-                        parts.append(f"<div style='margin-bottom: 0.5rem;'>")
-                        if section_name:
-                            parts.append(f"<strong style='font-size: 0.88rem; color: var(--crystal-text);'>{section_name}</strong>")
-                        parts.append("<ul style='list-style: none; margin: 0.25rem 0 0; padding: 0; font-size: 0.85rem;'>")
+                    # Filter out navigation items and only show items with meaningful content
+                    meaningful_items = [
+                        item for item in items 
+                        if item.get("name") and (
+                            item.get("price") or 
+                            (len(item.get("name", "")) < 50 and 
+                             not any(nav in item.get("name", "").lower() for nav in NAVIGATION_TERMS))
+                        )
+                    ]
+                    
+                    if meaningful_items:
+                        sections_shown += 1
+                        parts.append("<div class='menu-category'>")
+                        if section_name and section_name.lower() not in ["genel", "general"]:
+                            parts.append(f"<div class='menu-category-name'>✨ {escape(section_name)}</div>")
+                        parts.append("<ul class='menu-items'>")
                         
-                        for item in items[:3]:  # Show first 3 items per section
-                            item_name = item.get("name", "")
-                            item_price = item.get("price", "")
+                        for item in meaningful_items[:4]:  # Show first 4 items per section
+                            item_name = escape(item.get("name", ""))
+                            item_price = escape(item.get("price", "")) if item.get("price") else ""
+                            
                             if item_name:
-                                parts.append(f"<li style='color: var(--crystal-muted); padding: 0.15rem 0;'>")
-                                parts.append(f"{item_name}")
+                                parts.append("<li class='menu-item'>")
+                                parts.append(f"<span class='menu-item-name'>{item_name}</span>")
                                 if item_price:
-                                    parts.append(f" <span style='float: right; font-weight: 600;'>{item_price}</span>")
+                                    parts.append(f"<span class='menu-item-price'>{item_price}</span>")
                                 parts.append("</li>")
                         
-                        if len(items) > 3:
-                            parts.append(f"<li style='font-style: italic; color: var(--crystal-muted);'>...ve {len(items) - 3} ürün daha</li>")
+                        if len(meaningful_items) > 4:
+                            parts.append(f"<li class='menu-more'>+{len(meaningful_items) - 4} ürün daha</li>")
                         
                         parts.append("</ul></div>")
                 
-                if len(menu.get("sections", [])) > 2:
-                    parts.append(f"<p style='font-size: 0.8rem; color: var(--crystal-muted); margin: 0.25rem 0 0;'>...ve {len(menu['sections']) - 2} kategori daha</p>")
+                total_sections = len([s for s in menu.get("sections", []) if s.get("items")])
+                if total_sections > sections_shown:
+                    parts.append(f"<div class='menu-more'>+{total_sections - sections_shown} kategori daha</div>")
                 
                 parts.append("</div>")
             
-            # Show PDF menu links
+            # Show PDF menu links with modern design
             elif menu.get("pdf_menus"):
                 parts.append("<div class='menu-section'>")
-                parts.append("<h4 style='margin: 0.75rem 0 0.5rem; font-size: 0.95rem; color: var(--crystal-primary);'>🍽️ Menü</h4>")
+                parts.append("<div class='menu-header'>")
+                parts.append("<h4><span>🍽️</span> Menü</h4>")
+                if date_str:
+                    parts.append(f"<span class='menu-date-badge'>📅 {date_str}</span>")
+                parts.append("</div>")
+                
                 for pdf in menu["pdf_menus"][:2]:
                     pdf_url = pdf.get("url", "")
-                    pdf_text = pdf.get("text", "PDF Menü")
+                    pdf_text = escape(pdf.get("text", "PDF Menü"))
                     if pdf_url:
-                        parts.append(f"<a href='{pdf_url}' target='_blank' style='color: var(--crystal-primary); font-size: 0.88rem;'>📄 {pdf_text}</a><br>")
+                        parts.append(f"<a href='{escape(pdf_url, quote=True)}' target='_blank' class='menu-pdf-link'>📄 {pdf_text}</a>")
                 parts.append("</div>")
         
         except (json.JSONDecodeError, TypeError):
@@ -511,17 +852,17 @@ def build_popup(record: dict, display: dict[str, str | None]) -> str:
     actions: list[str] = []
     if maps_url:
         actions.append(
-            f"<a href='{maps_url}' target='_blank' rel='noopener'><span class='icon'>📍</span>Google Maps</a>"
+            f"<a href='{escape(maps_url, quote=True)}' target='_blank' rel='noopener'><span class='icon'>📍</span>Google Maps</a>"
         )
     if display_website:
         actions.append(
-            f"<a class='secondary' href='{display_website}' target='_blank' rel='noopener'>Web Sitesi</a>"
+            f"<a class='secondary' href='{escape(display_website, quote=True)}' target='_blank' rel='noopener'>🌐 Web Sitesi</a>"
         )
     if actions:
         parts.append("<div class='actions'>" + "".join(actions) + "</div>")
 
     if record.get("geocode_provider"):
-        provider = record["geocode_provider"].title()
+        provider = escape(record["geocode_provider"].title())
         parts.append(f"<div class='extra source'>Konum kaynağı: {provider}</div>")
 
     parts.append("</div>")
@@ -571,11 +912,11 @@ def generate_map(records: list[dict], output_path: Path) -> int:
             icon="cutlery",
             prefix="fa",
             icon_shape="marker",
-            background_color="#2a9d8f",
-            border_color="#1f7a6d",
+            background_color="#14b8a6",
+            border_color="#0d9488",
             text_color="#ffffff",
             border_width=2,
-            inner_icon_style="font-size:16px;padding-top:2px;",
+            inner_icon_style="font-size:17px;padding-top:2px;",
         )
         marker = folium.Marker(
             location=[record["latitude"], record["longitude"]],
